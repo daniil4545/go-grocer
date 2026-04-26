@@ -7,7 +7,6 @@ Telegram-бот для учёта продуктов и финансов чер�
 - Language: go
 - Runtime: Go 1.22+
 - Telegram: `go-telegram-bot-api` или `telebot v3`
-- QR декодирование: `gozbar` (CGO), требует `libzbar0`
 - БД: SQLite (`modernc.org/sqlite`, pure Go, без CGO)
 - Query builder: `sqlx`
 - LLM нормализация: Claude API (claude-haiku), через `net/http`
@@ -15,17 +14,34 @@ Telegram-бот для учёта продуктов и финансов чер�
 
 ## Ключевые файлы
 
-- `cmd/bot/main.go`: точка входа, инициализация зависимостей
-- `internal/telegram/`: обработчики команд и фото от пользователя
-- `internal/fns/`: клиент к ФНС API (`proverkacheka.nalog.ru`)
-- `internal/qr/`: декодирование QR-кода из фото (gozbar)
-- `internal/llm/`: пайплайн нормализации названий товаров через Claude
-- `internal/db/`: схема, миграции, репозитории (sqlx)
+- `tg-bot/main.go`: точка входа, bot loop, обработка фото и документов
+- `tg-bot/fns.go`: клиент к proverkacheka.com API, структуры ответа
 - `docker-compose.yml`: описание окружения
 
 ## Архитектура
 
-Основной поток: фото QR → декодирование параметров (`t`, `s`, `fn`, `i`, `fp`) → запрос к ФНС API → сохранение сырых позиций → LLM нормализация → `product_mappings` кэш → аналитика.
+Основной поток: фото QR → proverkacheka.com API (формат 4, qrfile) → сырые позиции JSON → сохранение → LLM нормализация → `product_mappings` кэш → аналитика.
+
+QR распознаётся на стороне API — gozbar не нужен, CGO-зависимости отсутствуют.
+
+### proverkacheka.com API
+
+Endpoint: `POST https://proverkacheka.com/api/v1/check/get`
+
+Используемый формат (4 — qrfile):
+- Content-Type: `multipart/form-data`
+- Поля: `token` (из env), `qrfile` (байты фото)
+
+Коды ответа (`code`):
+- `1` — успех, данные в `data.json`
+- `2` — данные ещё не получены, нужен retry
+- `4` — подождать перед retry
+- `0`, `3`, `5` — ошибка
+
+Ключевые поля `data.json`:
+- `items[i].name`, `items[i].price`, `items[i].quantity`, `items[i].sum` — позиции
+- `totalSum` — итого
+- `user` — организация, `userInn` — ИНН, `retailPlaceAddress` — адрес, `ticketDate` — дата
 
 Схема БД:
 - `receipts` — чеки (магазин, ИНН, дата, сумма)
@@ -44,7 +60,8 @@ Telegram-бот для учёта продуктов и финансов чер�
 
 ## Gotchas
 
-- ФНС API (`proverkacheka.nalog.ru`) требует регистрации/авторизации — изучить перед стартом M1
-- `gozbar` требует CGO и системную зависимость `libzbar0` — учесть в Dockerfile
+- Все суммы в API (`items[i].sum`, `totalSum`, `cashTotalSum`) — в **копейках**, не в рублях
+- `code=2` — данные ещё не готовы, нужен retry; `code=4` — ждать перед retry; не путать с ошибкой
+- `first=1` — чек получен впервые, `first=0` — повторный запрос (кэш на стороне API)
 - Нормализация LLM — ключевой нетривиальный шаг; без неё аналитика даёт мусор
 - `modernc.org/sqlite` — pure Go, не путать с `mattn/go-sqlite3` (CGO)

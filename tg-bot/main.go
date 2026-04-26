@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -22,7 +23,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("BOT_TOKEN"))
+	botToken := os.Getenv("BOT_TOKEN")
+	fnstoken := os.Getenv("FNS_TOKEN")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		slog.Error("failed to create bot", "err", err)
 		os.Exit(1)
@@ -42,12 +49,22 @@ func main() {
 			slog.Info("message received", "user", update.Message.From.UserName, "text", update.Message.Text)
 
 			if len(update.Message.Photo) > 0 {
-				data, err := HandlePhoto(bot, update.Message.Photo[len(update.Message.Photo)-1])
+				photoByte, err := HandlePhoto(bot, update.Message.Photo[len(update.Message.Photo)-1])
 				if err != nil {
 					slog.Error("failed to handle photo", "err", err)
 					continue
 				}
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Размер: %d", len(data)))
+				receipt, err := GetReceipt(ctx, fnstoken, photoByte)
+				if err != nil {
+					slog.Error("failed to get receipt", "err", err)
+					continue
+				}
+				var text string
+				for _, item := range receipt.Items {
+					text += fmt.Sprintf("%s — %.2f руб.\n", item.Name, float64(item.Sum)/100)
+				}
+				text += fmt.Sprintf("\nИтого: %.2f руб.", float64(receipt.TotalSum)/100)
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
 				if _, err := bot.Send(msg); err != nil {
 					slog.Error("failed to send message", "err", err)
 				}
