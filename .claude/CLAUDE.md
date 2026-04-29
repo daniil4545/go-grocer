@@ -14,8 +14,8 @@ Telegram-бот для учёта продуктов и финансов чер�
 
 ## Ключевые файлы
 
-- `tg-bot/main.go`: точка входа, bot loop, обработка фото и документов
-- `tg-bot/fns.go`: клиент к proverkacheka.com API, структуры ответа
+- `main.go`: точка входа, bot loop, обработка фото и документов
+- `fns.go`: клиент к proverkacheka.com API, структуры ответа, retry-логика
 - `docker-compose.yml`: описание окружения
 
 ## Архитектура

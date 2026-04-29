@@ -12,7 +12,7 @@ Telegram-бот для учёта продуктов и финансов чер�
 ```bash
 cp .env.example .env
 # заполни BOT_TOKEN и FNS_TOKEN в .env
-go run ./tg-bot/
+go run .
 ```
 
 ## Переменные окружения
@@ -21,6 +21,7 @@ go run ./tg-bot/
 |------------|----------|
 | `BOT_TOKEN` | Токен Telegram-бота от @BotFather |
 | `FNS_TOKEN` | API-токен от proverkacheka.com |
+| `ALLOWED_CHAT_ID` | Telegram chat_id единственного разрешённого пользователя |
 
 ## Стек
 
