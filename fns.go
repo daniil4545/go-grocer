@@ -21,6 +21,8 @@ type Item struct {
 type Receipt struct {
 	TotalSum   int64  `json:"totalSum"`
 	User       string `json:"user"`
+	UserInn    string `json:"userInn"`
+	Address    string `json:"retailPlaceAddress"`
 	TicketDate string `json:"ticketDate"`
 	Items      []Item `json:"items"`
 }

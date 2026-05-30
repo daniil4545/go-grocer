@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/lmittmann/tint"
@@ -27,6 +27,10 @@ func main() {
 
 	botToken := os.Getenv("BOT_TOKEN")
 	fnstoken := os.Getenv("FNS_TOKEN")
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "./grocer.db"
+	}
 
 	allowedChatID, err := strconv.ParseInt(os.Getenv("ALLOWED_CHAT_ID"), 10, 64)
 	if err != nil {
@@ -36,6 +40,19 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		slog.Error("failed to open db", "err", err)
+		os.Exit(1)
+	}
+	defer func() { _ = db.Close() }()
+
+	store := NewStore(db)
+	if err := store.InitSchema(ctx); err != nil {
+		slog.Error("failed to init db schema", "err", err)
+		os.Exit(1)
+	}
 
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
@@ -64,6 +81,18 @@ func main() {
 
 		slog.Info("message received", "user", update.Message.From.UserName, "text", update.Message.Text)
 
+		if text, ok, err := HandleCommand(ctx, store, update.Message.Text); ok {
+			if err != nil {
+				slog.Error("failed to handle command", "err", err)
+				text = "Не удалось выполнить команду. Попробуй ещё раз."
+			}
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
+			if _, err := bot.Send(msg); err != nil {
+				slog.Error("failed to send message", "err", err)
+			}
+			continue
+		}
+
 		var fileID string
 		if len(update.Message.Photo) > 0 {
 			fileID = update.Message.Photo[len(update.Message.Photo)-1].FileID
@@ -89,14 +118,14 @@ func main() {
 			continue
 		}
 
-		var sb strings.Builder
-		for _, item := range receipt.Items {
-			fmt.Fprintf(&sb, "%s — %.2f руб.\n", item.Name, float64(item.Sum)/100)
+		if _, err := store.SaveReceipt(ctx, receipt); err != nil {
+			slog.Error("failed to save receipt", "err", err)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Чек получен, но не удалось сохранить его в базу.")
+			bot.Send(msg) //nolint:errcheck
+			continue
 		}
-		fmt.Fprintf(&sb, "\nИтого: %.2f руб.", float64(receipt.TotalSum)/100)
-		text := sb.String()
 
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, FormatSavedReceipt(receipt))
 		if _, err := bot.Send(msg); err != nil {
 			slog.Error("failed to send message", "err", err)
 		}
