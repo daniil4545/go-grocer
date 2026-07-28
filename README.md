@@ -1,5 +1,7 @@
 # go-grocer
 
+[![CI](https://github.com/daniil4545/go-grocer/actions/workflows/ci.yml/badge.svg)](https://github.com/daniil4545/go-grocer/actions/workflows/ci.yml)
+
 Telegram-бот для учёта покупок по кассовым чекам: фото QR-кода, позиции из API ФНС, статистика трат в SQLite. Pure Go, без CGO.
 
 Бот принимает фото QR-кода или документ с чеком, распознаёт чек через [proverkacheka.com](https://proverkacheka.com), сохраняет чек и позиции в локальную SQLite-базу и показывает статистику командами прямо в Telegram.
@@ -44,10 +46,16 @@ go vet ./...
 | `FNS_TOKEN` | API-токен от proverkacheka.com |
 | `ALLOWED_CHAT_ID` | Telegram chat_id единственного разрешённого пользователя |
 | `DB_PATH` | Путь до SQLite-файла, по умолчанию `./grocer.db` |
+| `LOG_LEVEL` | Уровень логирования: `debug`/`info`/`warn`/`error`, по умолчанию `info` |
+| `BOT_DEBUG` | Debug-режим `go-telegram-bot-api` (лог всех запросов к Telegram API), по умолчанию `false` |
 
 ## Стек
 
 Go 1.25, `modernc.org/sqlite`, `go-telegram-bot-api/v5`, `slog`.
+
+## О разработке
+
+Часть работы велась через AI-агента (Claude Code) с открытым внутренним roadmap в `.claude/` и `docs/state.md`. Реализован и протестирован M1 (приём и сохранение чеков, статистика) — это и есть то, что описано в README выше. M2-M4 в roadmap — не начатая работа, а не забытая недоделка: файлы оставлены в репозитории намеренно, как рабочий журнал.
 
 ## Лицензия
 
