@@ -36,7 +36,13 @@ type CheckResponse struct {
 	Data json.RawMessage `json:"data"`
 }
 
-const fnsURL = "https://proverkacheka.com/api/v1/check/get"
+var (
+	fnsURL     = "https://proverkacheka.com/api/v1/check/get"
+	httpClient = http.DefaultClient
+
+	retryDelayCode2 = 2 * time.Second
+	retryDelayCode4 = 8 * time.Second
+)
 
 func sendReceiptRequest(ctx context.Context, token string, photo []byte) (*CheckResponse, error) {
 	buf := bytes.Buffer{}
@@ -61,7 +67,7 @@ func sendReceiptRequest(ctx context.Context, token string, photo []byte) (*Check
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
@@ -109,11 +115,11 @@ func GetReceipt(ctx context.Context, token string, photo []byte) (*Receipt, erro
 			}
 			return &checkData.JSON, nil
 		case 2:
-			if err := sleepWithContext(ctx, 2*time.Second); err != nil {
+			if err := sleepWithContext(ctx, retryDelayCode2); err != nil {
 				return nil, err
 			}
 		case 4:
-			if err := sleepWithContext(ctx, 8*time.Second); err != nil {
+			if err := sleepWithContext(ctx, retryDelayCode4); err != nil {
 				return nil, err
 			}
 		default:
