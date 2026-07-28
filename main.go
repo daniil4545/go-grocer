@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/lmittmann/tint"
@@ -17,7 +18,7 @@ import (
 )
 
 func main() {
-	slog.SetDefault(slog.New(tint.NewHandler(os.Stderr, &tint.Options{Level: slog.LevelDebug})))
+	slog.SetDefault(slog.New(tint.NewHandler(os.Stderr, &tint.Options{Level: logLevel()})))
 
 	err := godotenv.Load()
 	if err != nil {
@@ -60,7 +61,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	bot.Debug = true
+	bot.Debug, _ = strconv.ParseBool(os.Getenv("BOT_DEBUG"))
 
 	slog.Info("authorized", "username", bot.Self.UserName)
 
@@ -114,14 +115,18 @@ func main() {
 		if err != nil {
 			slog.Error("failed to get receipt", "err", err)
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Не удалось получить чек. Попробуй ещё раз.")
-			bot.Send(msg) //nolint:errcheck
+			if _, err := bot.Send(msg); err != nil {
+				slog.Error("failed to send message", "err", err)
+			}
 			continue
 		}
 
 		if _, err := store.SaveReceipt(ctx, receipt); err != nil {
 			slog.Error("failed to save receipt", "err", err)
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Чек получен, но не удалось сохранить его в базу.")
-			bot.Send(msg) //nolint:errcheck
+			if _, err := bot.Send(msg); err != nil {
+				slog.Error("failed to send message", "err", err)
+			}
 			continue
 		}
 
@@ -129,6 +134,19 @@ func main() {
 		if _, err := bot.Send(msg); err != nil {
 			slog.Error("failed to send message", "err", err)
 		}
+	}
+}
+
+func logLevel() slog.Level {
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
 	}
 }
 
